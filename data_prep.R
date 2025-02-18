@@ -8,6 +8,7 @@ library(stringr)
 library(sva)
 library(parallel)
 
+# Create a parallel socket cluster (if you have any other option, that could be used) 
 num_cluster<-4
 clu<-makeCluster(num_cluster)
 
