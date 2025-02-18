@@ -8,7 +8,8 @@ library(stringr)
 library(sva)
 library(parallel)
 
-clu<-makeCluster(4)
+num_cluster<-4
+clu<-makeCluster(num_cluster)
 
 # Data preparation for the comprehensive NSCLC patient transcriptome analysis
 # Terms representing elements not available were defined in advance of the analysis
