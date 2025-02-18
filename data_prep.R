@@ -6,6 +6,9 @@ library(SummarizedExperiment)
 library(pbapply)
 library(stringr)
 library(sva)
+library(parallel)
+
+clu<-makeCluster(4)
 
 # Data preparation for the comprehensive NSCLC patient transcriptome analysis
 # Terms representing elements not available were defined in advance of the analysis
