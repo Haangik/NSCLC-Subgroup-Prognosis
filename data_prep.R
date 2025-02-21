@@ -7,6 +7,8 @@ library(pbapply)
 library(stringr)
 library(sva)
 library(parallel)
+library(org.Hs.eg.db)
+library(lubridate)
 
 # Create a parallel socket cluster (if you have any other option, that could be used) 
 num_cluster<-4
@@ -299,6 +301,7 @@ gene_info<-data.frame(gene_id=data.luad.row.info@elementMetadata@listData$gene_i
   filter(gene_id %in% colnames(expression_df_luad))
 
 gene_info$ENTREZID<-pbsapply(gene_info$gene_symbol, FUN=function(x){
+  library(org.Hs.eg.db)
   tryCatch(AnnotationDbi::select(org.Hs.eg.db, 
                                  keys=x, 
                                  columns=c("SYMBOL", "ENTREZID"), keytype = "SYMBOL")$ENTREZID[1], 
@@ -313,6 +316,7 @@ clusterEvalQ(clu, {
 })
 
 gene_info$gene_symbol<-pbsapply(gene_info$gene_symbol, FUN=function(x){
+  library(dplyr)
   chk<-symbol.check%>% filter(Input %in% x)
   
   if(length(which(chk$Match.type=="Approved symbol"))>0){
