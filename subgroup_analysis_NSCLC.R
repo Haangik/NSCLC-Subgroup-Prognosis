@@ -1,3 +1,5 @@
+source("FSQN.R")
+
 ### Selection of samples to be analyzed
 # Target sample: Non-small cell lung cancer (Adenocarcinoma + squamous cell carcinoma + large cell carcinoma)
 target.samples<-clinical.annotation.total %>% filter(Histology %in% c("ADC", "LCC", "SCC")) %>% 
@@ -71,6 +73,9 @@ clusterEvalQ(clu, {
 # Significant gene candidates from randomly sampled patient subgroup for n times
 n = 1000
 sig_genes_subsample<-pblapply(1:n, FUN=function(n){
+  library(pbapply)
+  library(survival)
+  
   sample_ind<-unique(sort(sample(1:nrow(y), nrow(y), replace=T)))
   
   sig.gene.res<-do.call(rbind, pblapply(c(1:ncol(merged.data)), FUN=function(g.ind){
@@ -96,7 +101,7 @@ sig_genes_subsample<-pblapply(1:n, FUN=function(n){
 p1 = 0.1
 # Selecting significant mechanism candidates which contain significant gene candidates above proportion p2
 p2 = 0.3
-sig_gene_candidates<-names(which(table(unlist(sig_genes_subsample)) >= p*length(sig_genes_subsample)))
+sig_gene_candidates<-names(which(table(unlist(sig_genes_subsample)) >= p1*length(sig_genes_subsample)))
 clusterExport(clu, "sig_gene_candidates")
 
 
