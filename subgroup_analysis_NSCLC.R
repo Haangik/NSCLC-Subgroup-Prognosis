@@ -139,27 +139,76 @@ mechanism_candidates<-do.call(rbind, pblapply(unique(mechanism_candidates$Gene_l
 
 ##
 set.seed(42)
+n.chain=1200
 K=5 # Number of the patient subgroup
 
-# 1. Random sampling of latent patient subgroups
-Z<-sample(1:K, size=dim(target.samples)[1], replace=TRUE)
-
-# 2. Random sampling of gene sets
-M_Z<-sample(dim(mechanism_candidates)[1], size=K, replace=FALSE)
-
-# 3. Subgroup-specific model optimization
-weibull_aft_models<-pblapply(1:K, FUN=function(k){
-  # Optimizing Weibull AFT model
-  sample_ind<-which(Z==k)
-  genes=mechanism_candidates$Gene_list[[M_Z[k]]]
-  
+# baseline likelihood: likelihood of Weibull AFT model trained with whole samples
+# Here we chose the best value of likelihoods from the whole mechanism candidates
+baseline_likelihood<-pbsapply(1:dim(mechanism_candidates)[1], FUN=function(k){
+  genes<-mechanism_candidates$Gene_list[[k]]
   g.ind<-match(genes, colnames(merged.data))
   
-  weibull_aft_model <-survreg(
-    Surv(as.numeric(y$time)[sample_ind], as.numeric(y$event)[sample_ind])~
-      merged.data[sample_ind,g.ind],
+  model<-survreg(
+    Surv(as.numeric(y$time), as.numeric(y$event))~
+      merged.data[,g.ind],
     dist="weibull"
   )
+  return(logLik(model)[1])
+},cl=clu) %>% max
 
-  return(weibull_aft_model)  
-})
+clusterExport(clu, c("baseline_likelihood"))
+result_k_5<-pblapply(1:n.chain, FUN=function(seed, n.iter=50000, stopping=5000, K){
+  # n.iter: number of maximum iteration
+  # early-stopping criteria: if the likelihood does not change more than 'stopping' variable, break from the loop
+  
+  set.seed(seed)
+  likelihood.trace<-baseline_likelihood
+  
+  sampling_subgroup_models<-tibble(Z=vector(), M=vector(), likelihood=numeric())
+  stopping_cnt<-0
+  for(i in 1:n.iter){
+    # 1. Random sampling of latent patient subgroups
+    Z<-sample(1:K, size=dim(target.samples)[1], replace=TRUE)
+    
+    # 2. Random sampling of gene sets
+    M<-sample(dim(mechanism_candidates)[1], size=K, replace=FALSE)
+    
+    # 3. Subgroup-specific model optimization
+    weibull_aft_models<-lapply(1:K, FUN=function(k){
+      # Optimizing Weibull AFT model
+      sample_ind<-which(Z==k)
+      genes=mechanism_candidates$Gene_list[[M[k]]]
+      
+      g.ind<-match(genes, colnames(merged.data))
+      
+      weibull_aft_model <-survreg(
+        Surv(as.numeric(y$time)[sample_ind], as.numeric(y$event)[sample_ind])~
+          merged.data[sample_ind,g.ind],
+        dist="weibull"
+      )
+      
+      return(weibull_aft_model)  
+    })
+    
+    total_log_likelihood<-sum(sapply(weibull_aft_models, FUN=function(model){
+      logLik(model)[1]
+    }))
+    
+    if(total_log_likelihood>likelihood.trace){
+      likelihood.trace<-total_log_likelihood
+      sampling_subgroup_models<-rbind(sampling_subgroup_models,
+                                      tibble(Z=list(Z), M=list(M), likelihood=total_log_likelihood))
+      stopping_cnt<-0
+      cat(i, '\n')
+    }else{
+      stopping_cnt<-stopping_cnt+1
+    }
+    if(stopping_cnt>=stopping){
+      break
+    }
+  }
+  
+  return(list(Z=Z, M=M, likelihood=likelihood.trace))
+  
+}, cl=clu, K=K)
+
